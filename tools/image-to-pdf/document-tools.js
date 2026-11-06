@@ -7,6 +7,8 @@ const definitions = {
   merge: { title: 'A few PDFs.<br>One tidy <em>document.</em>', copy: 'Bring your documents together, in your order.<br>All your pages, without the back and forth.', heading: 'Bring them together', summary: 'One tidy document', description: 'Combine PDFs in the order shown, with every page included.', button: 'Merge PDFs', name: 'merged' },
   extract: { title: 'Keep the pages.<br>Skip the <em>rest.</em>', copy: 'A chapter, a receipt, or just the good bits.<br>Pick the pages you need and make a fresh PDF.', heading: 'Just what you need', summary: 'A smaller collection', description: 'Choose pages by number or range. Reorder them by entering your preferred sequence.', button: 'Extract pages', name: 'extracted-pages' },
   rotate: { title: 'A fresh angle.<br>The right way <em>up.</em>', copy: 'Sideways scans happen. Fix a page or a whole PDF.<br>Turn only the pages you choose.', heading: 'Find the right angle', summary: 'A better perspective', description: 'Rotate selected pages while keeping the rest of your document intact.', button: 'Rotate PDF', name: 'rotated' },
+  edit: { title: 'A few edits.<br>A finished <em>PDF.</em>', copy: 'Add a note, an image, or a little emphasis.<br>Your finishing touches, right where you want them.' },
+  sign: { title: 'Make it yours.<br>Add your <em>signature.</em>', copy: 'Draw it, type it, or bring your own.<br>Place your signature, name, and date in a few clicks.' },
 };
 const states = Object.fromEntries(['merge', 'extract', 'rotate'].map(key => [key, { files: [], selection: 'all', angle: 90, filename: definitions[key].name, message: '', error: false, download: null }]));
 let active = 'images', busy = false;
@@ -27,14 +29,16 @@ function setTool(tool, focus = false) {
     tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1;
     if (selected && focus) tab.focus();
   }
-  $('image-panel').hidden = tool !== 'images'; $('document-panel').hidden = tool === 'images';
+  $('image-panel').hidden = tool !== 'images'; $('document-panel').hidden = !states[tool];
+  $('edit-panel').hidden = !['edit', 'sign'].includes(tool);
   $('document-panel').setAttribute('aria-labelledby', `tool-${tool}`);
   $('intro-title').innerHTML = definitions[tool].title;
   $('intro-copy').innerHTML = definitions[tool].copy;
-  if (tool !== 'images') render();
+  if (states[tool]) render();
+  document.dispatchEvent(new CustomEvent('paperwork-tool', { detail: { tool } }));
 }
 function render() {
-  if (active === 'images') return;
+  if (!states[active]) return;
   const state = states[active], config = definitions[active], merging = active === 'merge';
   const pages = state.files.reduce((sum, file) => sum + file.document.getPageCount(), 0);
   const picked = selection(state), valid = !picked.error;
@@ -122,7 +126,7 @@ function reorder(state, from, to) {
   invalidate(state); notify(state); render();
 }
 async function addDocuments(files) {
-  if (busy || active === 'images' || !files.length) return;
+  if (busy || !states[active] || !files.length) return;
   const state = states[active], merging = active === 'merge';
   if (!merging && files.length !== 1) { notify(state, 'Choose one PDF at a time for this tool.', true); render(); return; }
   busy = true; setProcessing('documents', true); notify(state, 'Reading your PDF…'); render();
@@ -148,16 +152,16 @@ async function addDocuments(files) {
 for (const tab of document.querySelectorAll('[data-tool]')) tab.addEventListener('click', () => setTool(tab.dataset.tool));
 document.querySelector('.tool-switcher').addEventListener('keydown', event => {
   if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key) || isProcessing()) return;
-  event.preventDefault(); const tools = ['images', 'merge', 'extract', 'rotate'];
+  event.preventDefault(); const tools = Array.from(document.querySelectorAll('[data-tool]'), tab => tab.dataset.tool);
   const offset = event.key === 'ArrowLeft' ? -1 : 1;
-  const index = event.key === 'Home' ? 0 : event.key === 'End' ? 3 : (tools.indexOf(active) + offset + 4) % 4;
+  const index = event.key === 'Home' ? 0 : event.key === 'End' ? tools.length - 1 : (tools.indexOf(active) + offset + tools.length) % tools.length;
   setTool(tools[index], true);
 });
 for (const id of ['pdf-dropzone', 'pdf-add']) $(id).addEventListener('click', () => $('pdf-files').click());
 $('pdf-files').addEventListener('change', event => addDocuments(Array.from(event.target.files)));
-document.addEventListener('dragover', event => { if (active !== 'images' && event.dataTransfer.types.includes('Files')) { event.preventDefault(); $('pdf-dropzone').classList.add('dragover'); } });
+document.addEventListener('dragover', event => { if (states[active] && event.dataTransfer.types.includes('Files')) { event.preventDefault(); $('pdf-dropzone').classList.add('dragover'); } });
 document.addEventListener('dragleave', event => { if (!event.relatedTarget) $('pdf-dropzone').classList.remove('dragover'); });
-document.addEventListener('drop', event => { if (active !== 'images' && event.dataTransfer.files.length) { event.preventDefault(); $('pdf-dropzone').classList.remove('dragover'); addDocuments(Array.from(event.dataTransfer.files)); } });
+document.addEventListener('drop', event => { if (states[active] && event.dataTransfer.files.length) { event.preventDefault(); $('pdf-dropzone').classList.remove('dragover'); addDocuments(Array.from(event.dataTransfer.files)); } });
 $('pdf-clear').addEventListener('click', () => { const state = states[active]; state.files = []; state.selection = 'all'; invalidate(state); notify(state); render(); });
 $('pdf-range').addEventListener('input', event => { const state = states[active]; state.selection = event.target.value; invalidate(state); notify(state); render(); });
 $('pdf-filename').addEventListener('input', event => { const state = states[active]; state.filename = event.target.value; invalidate(state); notify(state); $('pdf-download').hidden = true; $('pdf-status').textContent = ''; });

@@ -2,7 +2,8 @@
 
 ## Image-to-PDF app
 
-**Paperwork** offers image conversion, PDF merging, page extraction, and rotation. From this
+**Paperwork** offers image conversion, PDF merging, page extraction, rotation,
+visual additions, and signature placement. From this
 folder, run `npm start`, then open **http://127.0.0.1:4173**. See
 `tools/image-to-pdf/README.md` for features, limits, and restore instructions.
 Reference-page observations are in `investigations/ilovepdf/findings.md`.

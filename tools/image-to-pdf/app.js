@@ -1,5 +1,6 @@
 import { pageLayout, createPdf } from './pdf.js';
 import './document-tools.js';
+import './editor-ui.js';
 import { setProcessing } from './tool-state.js';
 
 const $ = id => document.getElementById(id);
@@ -113,7 +114,7 @@ document.addEventListener('dragleave', event => { if (!event.relatedTarget) $('d
 document.addEventListener('drop', event => { if ($('image-panel').hidden) return; if (event.dataTransfer.files.length) { event.preventDefault(); $('dropzone').classList.remove('dragover'); addFiles(Array.from(event.dataTransfer.files)); } });
 $('clear').addEventListener('click', () => { for (const item of state.images) URL.revokeObjectURL(item.url); state.images = []; state.selected = null; invalidateDownload(); message(); render(); });
 $('sort').addEventListener('click', () => { state.images.sort((a,b) => a.file.name.localeCompare(b.file.name, undefined, { numeric: true })); invalidateDownload(); render(); });
-for (const control of document.querySelectorAll('select, [name="orientation"], #filename')) control.addEventListener('input', () => { invalidateDownload(); preview(); });
+for (const control of document.querySelectorAll('#image-panel select, #image-panel [name="orientation"], #filename')) control.addEventListener('input', () => { invalidateDownload(); preview(); });
 $('convert').addEventListener('click', async () => {
   if (state.busy || !state.images.length || state.loading) return;
   state.busy = true; setProcessing('images', true); invalidateDownload(); render(); message('Creating your PDF…');

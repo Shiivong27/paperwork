@@ -60,6 +60,35 @@ unprotected copy. Merge/extract preserve page content but do not promise
 document-level bookmarks, metadata, or signatures. Page tiles show page dimensions
 and orientation rather than content thumbnails.
 
+### Edit PDF
+
+Open a PDF or use **Try a sample PDF**. Add text, JPEG/PNG images, transparent
+highlights, rectangles, and ellipses. Select additions to drag them, resize using
+the corner handle, or set their position/size in the properties panel. Text has
+font, size, color, and opacity controls. Shapes support outlines or fills.
+
+Use arrow keys to move a selected item (Shift moves faster), Delete to remove it,
+and Ctrl/Command+Z to undo. Ctrl/Command+Shift+Z redoes an action. Clear additions
+is also undoable. Each draft keeps up to 50 undo states. Page navigation and zoom
+do not change object placement in the exported PDF.
+
+### Sign PDF
+
+Draw a signature with mouse/touch, type a name and choose a style, or upload a
+JPEG/PNG signature image. Transparent PNGs work best. Place and resize the
+signature, then add a movable name/date. Edit and Sign keep separate drafts.
+
+Signatures are placed as visual graphics; this feature does not create
+certificate-based digital signatures or an identity-verification/audit service.
+
+The visual tools accept standard, unprotected PDFs up to 30 MB / 200 pages.
+Interactive forms remain unsupported. A draft supports up to 100 additions and
+20 image/signature assets (10 MB / 16 megapixels each, 30 MB / 32 megapixels
+combined). Existing document content remains intact. Additions are flattened as
+transparent graphics at up to 2x displayed-page resolution, capped at 16 megapixels
+per edited page. Added text is not searchable/selectable PDF text. These tools
+add content; they do not rewrite existing paragraphs or securely redact content.
+
 Images and PDFs are processed in the browser and never uploaded. The local server serves
 only app assets and rejects upload requests. All library assets are local; no
 CDN, analytics, or account is required. Image lists are held in memory and reset
@@ -95,16 +124,25 @@ harness also covers the image converter, merge order, extraction order, invalid
 page ranges, page tiles, selected-page rotation, repeat exports, filenames,
 download invalidation, tool switching, and viewport overflow.
 
+Editor checks also cover real page rendering, Unicode text, images, shapes,
+mouse/touch pointer movement and resizing, keyboard movement, undo/redo/delete,
+multi-page exports, cropped/rotated page pixel alignment, all three signature
+methods, dates, independent drafts, and replacing a loaded document. Renderer
+scripts, worker, font data, CMaps, ICC data, and decoders are bundled locally.
+Same-origin requests load those assets; documents and signatures are never sent
+to the server. PDF.js and its bundled data licenses are included in the build.
+
 ## Feature review
 
-The three document tools are developed on `feature/pdf-document-tools` for local
-review before a PR to main. If port 4173 is busy, start a separate preview with:
+The visual editor and signatures are developed on
+`feature/pdf-editor-and-signatures` for local review before a PR to main. A
+separate local preview can run with:
 
 ```bash
-PORT=4175 npm start
+PORT=4176 npm start
 ```
 
-Then open http://127.0.0.1:4175. Try each tool with a non-sensitive sample PDF.
+Then open http://127.0.0.1:4176. The Edit and Sign tabs each have a built-in sample.
 The feature branch itself does not deploy; PR checks only build/test. Merging
 the reviewed PR into main triggers the existing Pages deployment.
 

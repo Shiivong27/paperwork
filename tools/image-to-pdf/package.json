@@ -6,7 +6,10 @@
   "scripts": {
     "start": "node server.mjs",
     "build": "node build.mjs",
-    "test": "node --test pdf-tools.test.mjs"
+    "test": "node --test pdf-tools.test.mjs editor-model.test.mjs"
   },
-  "dependencies": { "pdf-lib": "1.17.1" }
+  "dependencies": {
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "6.5.438"
+  }
 }

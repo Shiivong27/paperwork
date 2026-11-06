@@ -2,10 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Convert images, merge PDFs, extract pages, and rotate documents privately in your browser.">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <meta name="description" content="Convert, organize, edit, and sign PDFs privately in your browser.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self'; font-src 'self' blob: data:; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'self'; object-src 'none'; base-uri 'none'">
   <title>Paperwork — Private PDF tools</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23285b42'/%3E%3Ctext x='8' y='24' font-size='24' fill='white'%3EP%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="./style.css">
+  <link rel="stylesheet" href="./editor.css">
   <script defer src="./pdf-lib.js"></script><script type="module" src="./app.js"></script>
 </head>
 <body>
@@ -17,6 +19,8 @@
       <button id="tool-merge" role="tab" aria-selected="false" aria-controls="document-panel" tabindex="-1" data-tool="merge"><span aria-hidden="true">⊞</span><span>Merge PDF<small>Better together</small></span></button>
       <button id="tool-extract" role="tab" aria-selected="false" aria-controls="document-panel" tabindex="-1" data-tool="extract"><span aria-hidden="true">▱</span><span>Extract pages<small>Just the pages you need</small></span></button>
       <button id="tool-rotate" role="tab" aria-selected="false" aria-controls="document-panel" tabindex="-1" data-tool="rotate"><span aria-hidden="true">↻</span><span>Rotate PDF<small>The right way up</small></span></button>
+      <button id="tool-edit" role="tab" aria-selected="false" aria-controls="edit-panel" tabindex="-1" data-tool="edit"><span aria-hidden="true">✎</span><span>Edit PDF<small>Finishing touches</small></span></button>
+      <button id="tool-sign" role="tab" aria-selected="false" aria-controls="edit-panel" tabindex="-1" data-tool="sign"><span aria-hidden="true">⌁</span><span>Sign PDF<small>Make your mark</small></span></button>
     </nav>
     <div class="workspace" id="image-panel" role="tabpanel" aria-labelledby="tool-images">
       <section class="editor" aria-label="Image workspace">
@@ -79,6 +83,49 @@
         </div>
       </aside>
     </div>
+    <section id="edit-panel" class="visual-editor" role="tabpanel" aria-labelledby="tool-edit" hidden>
+      <input id="edit-file" type="file" accept="application/pdf,.pdf" hidden>
+      <input id="edit-image-file" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" hidden>
+      <div class="visual-layout">
+        <section class="visual-main" aria-label="Visual PDF editor">
+          <div class="section-bar"><h2 id="edit-workspace-title">Your canvas</h2><div class="toolbar"><button id="edit-replace" class="text-button" hidden>Choose another PDF</button><button id="edit-demo" class="text-button">Try a sample PDF</button></div></div>
+          <button id="edit-dropzone" class="dropzone"><span class="upload-icon" aria-hidden="true">↥</span><strong>Drop a PDF to get started</strong><span>or <u>browse files</u></span><small>Up to 30 MB · 200 pages · processed on your device</small></button>
+          <div id="edit-workbench" hidden>
+            <div class="edit-add-toolbar" aria-label="Add to your document">
+              <div id="edit-add-tools"><button id="edit-add-text">T <span>Text</span></button><button id="edit-add-image">▧ <span>Image</span></button><button id="edit-add-highlight">▰ <span>Highlight</span></button><button id="edit-add-rectangle">□ <span>Rectangle</span></button><button id="edit-add-ellipse">○ <span>Ellipse</span></button></div>
+              <div id="sign-add-tools" hidden><button id="sign-draw">⌁ <span>Draw signature</span></button><button id="sign-type">T <span>Type signature</span></button><button id="sign-upload">↥ <span>Upload signature</span></button></div>
+            </div>
+            <div id="sign-details" class="sign-details" hidden>
+              <div><label for="sign-name">Signer name</label><div class="inline-field"><input id="sign-name" placeholder="Your name" maxlength="100"><button id="sign-add-name">Add name</button></div></div>
+              <div><label for="sign-date">Date</label><div class="inline-field"><input id="sign-date" type="date"><button id="sign-add-date">Add date</button></div></div>
+            </div>
+            <div class="edit-view-toolbar"><div class="page-controls"><button id="edit-prev" aria-label="Previous editor page">←</button><label for="edit-page-select" class="sr-only">Editor page</label><select id="edit-page-select"></select><button id="edit-next" aria-label="Next editor page">→</button></div><div class="history-controls"><button id="edit-undo" title="Undo (Ctrl/⌘ Z)" aria-label="Undo addition">↶</button><button id="edit-redo" title="Redo (Ctrl/⌘ Shift Z)" aria-label="Redo addition">↷</button><button id="edit-reset" class="text-button">Clear additions</button></div><label class="zoom-control">Zoom <select id="edit-zoom"><option value="1">Fit</option><option value="1.25">125%</option><option value="1.5">150%</option><option value="2">200%</option></select></label></div>
+            <div id="edit-scroll" class="edit-scroll"><div id="edit-page" class="edit-page"><canvas id="edit-base" aria-label="Original PDF page preview"></canvas><div id="edit-objects" class="edit-objects" aria-label="Added objects"></div></div></div>
+            <p class="edit-canvas-hint">Select an addition to move it. Drag its corner to resize. Arrow keys move it; Shift + arrows move faster.</p>
+          </div>
+          <div id="edit-status" class="message" role="status" aria-live="polite"></div>
+        </section>
+        <aside class="settings edit-sidebar" aria-label="Addition settings">
+          <div class="section-bar"><h2 id="edit-properties-title">Make it yours</h2><span id="edit-mark-count" class="pill">0 additions</span></div>
+          <div class="settings-body">
+            <p id="edit-file-name" class="edit-file-name">Your PDF stays on your device.</p>
+            <p id="edit-no-selection" class="edit-empty-properties">Add an item using the toolbar, then select it to adjust its appearance and position.</p>
+            <div id="edit-properties" hidden>
+              <div id="edit-text-properties"><label for="edit-text">Text</label><textarea id="edit-text" rows="3" maxlength="500"></textarea><div class="property-pair"><div><label for="edit-font">Font</label><select id="edit-font"><option value="sans">Sans serif</option><option value="serif">Serif</option><option value="mono">Monospace</option></select></div><div><label for="edit-font-size">Size</label><input id="edit-font-size" type="number" min="6" max="96" step="1"></div></div></div>
+              <div id="edit-color-properties" class="property-pair"><div><label for="edit-color">Color</label><input id="edit-color" type="color" value="#25332b"></div><label id="edit-fill-label" class="fill-control"><input id="edit-fill" type="checkbox"> Fill shape</label></div>
+              <label for="edit-opacity">Opacity <span id="edit-opacity-value">100%</span></label><input id="edit-opacity" type="range" min="0.1" max="1" step="0.05" value="1">
+              <div class="property-pair"><div><label for="edit-x">Left</label><input id="edit-x" type="number" step="1" min="0"></div><div><label for="edit-y">Top</label><input id="edit-y" type="number" step="1" min="0"></div></div>
+              <div class="property-pair"><div><label for="edit-width">Width</label><input id="edit-width" type="number" step="1" min="4"></div><div><label for="edit-height">Height</label><input id="edit-height" type="number" step="1" min="4"></div></div>
+              <p class="field-note">Position and size use page coordinates. Images, signatures, and text resize proportionally.</p>
+              <button id="edit-delete" class="delete-addition">Remove selected addition</button>
+            </div>
+            <div class="edit-export"><label for="edit-filename">File name</label><div class="filename-wrap"><input id="edit-filename" value="edited" maxlength="100" aria-label="Edited PDF file name"><span>.pdf</span></div><button id="edit-export" class="primary" disabled><span>Download edited PDF</span><span aria-hidden="true">↗</span></button><a id="edit-download" class="download-again" hidden>Download PDF again</a></div>
+            <p id="edit-scope-note" class="document-limit-note">Additions, including text, export as graphics. Existing PDF text stays intact. This tool does not remove underlying content.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+    <dialog id="signature-dialog" class="signature-dialog" aria-labelledby="signature-heading"><form method="dialog"><div class="signature-heading"><h2 id="signature-heading">Make your signature</h2><button id="signature-cancel" value="cancel" aria-label="Close signature dialog">×</button></div></form><div id="signature-draw-panel"><p>Draw with your mouse, trackpad, or finger.</p><canvas id="signature-canvas" width="1040" height="360" aria-label="Draw your signature" tabindex="0"></canvas><button id="signature-clear" class="text-button">Clear drawing</button></div><div id="signature-type-panel" hidden><label for="signature-text">Type your signature</label><input id="signature-text" maxlength="100" placeholder="Your name"><label for="signature-font">Style</label><select id="signature-font"><option value="script">Handwritten</option><option value="serif">Classic</option><option value="sans">Simple</option></select><canvas id="signature-type-preview" width="1040" height="300" aria-label="Typed signature preview"></canvas></div><div class="signature-dialog-footer"><span>Placed as a visual signature.</span><button id="signature-use" class="primary" disabled>Add signature</button></div></dialog>
     <footer><span>Made for the everyday stuff.</span><span>No uploads. No accounts. Just your PDF.</span></footer>
   </main>
 </body>
