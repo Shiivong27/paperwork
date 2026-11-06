@@ -7,6 +7,7 @@
     "start": "npm --prefix tools/image-to-pdf start",
     "build:app": "npm --prefix tools/image-to-pdf run build",
     "build": "npm run build:app",
+    "test": "npm --prefix tools/image-to-pdf test",
     "rea": "bash scripts/rea.sh",
     "rea:verify": ".rea/runtime/node_modules/.bin/node scripts/verify-rea.mjs"
   },

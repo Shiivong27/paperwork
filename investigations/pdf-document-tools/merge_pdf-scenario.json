@@ -1,0 +1,32 @@
+{
+  "browser": {
+    "mode": "launch",
+    "executable_path": "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+    "headless": true
+  },
+  "start_url": {
+    "url": "https://www.ilovepdf.com/merge_pdf"
+  },
+  "actions": [
+    {
+      "step_id": "page-ready",
+      "action": "wait_for",
+      "locator": {
+        "kind": "css",
+        "selector": "h1"
+      },
+      "state": "visible",
+      "timeout_ms": 30000
+    }
+  ],
+  "capture": {
+    "at_end": [
+      "url",
+      "dom",
+      "accessibility"
+    ],
+    "events": [
+      "page-errors"
+    ]
+  }
+}

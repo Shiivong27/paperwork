@@ -1,6 +1,7 @@
 // Browser integration checks, served only when PAPERWORK_QA=1.
 import './app.js';
 import { pageLayout } from './pdf.js';
+import { runDocumentChecks } from './qa-document-tools.js';
 const $ = id => document.getElementById(id);
 const report = document.createElement('output'); report.id = 'qa-result'; report.hidden = true; document.body.append(report);
 const assert = (value, text) => { if (!value) throw new Error(text); };
@@ -37,7 +38,10 @@ try {
   document.querySelector('[aria-label="Rotate clockwise: 01-landscape.jpg"]').click();
   assert(document.querySelector('.thumb-button img').style.transform === 'rotate(90deg)', 'Rotation must update the thumbnail');
   $('filename').value = 'browser-test';
-  $('convert').click(); await until(() => !$('convert').disabled && !$('download-again').hidden);
+  $('convert').click();
+  assert($('tool-merge').disabled, 'Image processing must lock tool switching');
+  $('tool-merge').click(); assert(!$('image-panel').hidden, 'Tool switch must be blocked while images are processing');
+  await until(() => !$('convert').disabled && !$('download-again').hidden);
   assert(pdfBlob, 'Export must create a downloadable PDF');
   const pdf = await PDFLib.PDFDocument.load(await pdfBlob.arrayBuffer());
   assert(pdf.getPageCount() === 2, 'Export must contain one page per image');
@@ -64,6 +68,7 @@ try {
   const bytes = new Uint8Array(await pdfBlob.arrayBuffer());
   encoded.textContent = btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join('')); document.body.append(encoded);
   assert(document.documentElement.scrollWidth <= innerWidth, 'App must not overflow the viewport');
-  report.textContent = 'PASS: invalid files, JPEG + PNG upload, reorder, sorting, rotation, page geometry, export, filename, stale-download invalidation, fit-to-image, remove, clear.';
+  await runDocumentChecks(assert, until, () => pdfBlob);
+  report.textContent = 'PASS: image conversion regression, merge order, page extraction order, range validation, page tiles, selected-page rotation, repeated exports, filenames, stale downloads, independent tool state, clear, and viewport overflow.';
   report.dataset.status = 'passed';
 } catch (error) { report.textContent = 'FAIL: ' + error.message; report.dataset.status = 'failed'; console.error(error); }

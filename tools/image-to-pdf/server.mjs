@@ -7,11 +7,17 @@ const files = new Map([
   ['/style.css', ['style.css', 'text/css; charset=utf-8']],
   ['/app.js', ['app.js', 'text/javascript; charset=utf-8']],
   ['/pdf.js', ['pdf.js', 'text/javascript; charset=utf-8']],
+  ['/pdf-tools.js', ['pdf-tools.js', 'text/javascript; charset=utf-8']],
+  ['/document-tools.js', ['document-tools.js', 'text/javascript; charset=utf-8']],
+  ['/tool-state.js', ['tool-state.js', 'text/javascript; charset=utf-8']],
   ['/pdf-lib.js', ['node_modules/pdf-lib/dist/pdf-lib.min.js', 'text/javascript; charset=utf-8']],
 ]);
 const port = Number(process.env.PORT || 4173);
 const qa = process.env.PAPERWORK_QA === '1';
-if (qa) files.set('/qa.js', ['qa.js', 'text/javascript; charset=utf-8']);
+if (qa) {
+  files.set('/qa.js', ['qa.js', 'text/javascript; charset=utf-8']);
+  files.set('/qa-document-tools.js', ['qa-document-tools.js', 'text/javascript; charset=utf-8']);
+}
 const server = http.createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://localhost').pathname;
   const testPage = qa && pathname === '/qa';
