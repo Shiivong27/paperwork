@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('./', import.meta.url));
 const output = path.join(root, 'dist');
-const assets = ['index.html', 'style.css', 'app.js', 'pdf.js'];
+const assets = ['index.html', 'style.css', 'app.js', 'pdf.js', 'document-tools.js', 'pdf-tools.js', 'tool-state.js'];
 await mkdir(output, { recursive: true });
 // Refuse stale/unexpected content rather than publishing anything outside the app.
 const expected = new Set([...assets, 'pdf-lib.js', 'pdf-lib.LICENSE', '.nojekyll']);

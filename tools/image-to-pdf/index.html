@@ -2,17 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Turn JPEG and PNG images into a PDF, privately in your browser.">
+  <meta name="description" content="Convert images, merge PDFs, extract pages, and rotate documents privately in your browser.">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
-  <title>Paperwork — Images to PDF</title>
+  <title>Paperwork — Private PDF tools</title>
   <link rel="stylesheet" href="./style.css">
   <script defer src="./pdf-lib.js"></script><script type="module" src="./app.js"></script>
 </head>
 <body>
   <header><a class="brand" href="./" aria-label="Paperwork home"><span class="brand-icon">▤</span> paperwork<span class="brand-dot">.</span></a><span class="privacy"><span class="status-dot"></span> Files stay on your device</span></header>
   <main>
-    <section class="intro"><span class="eyebrow">A LITTLE LESS PAPERWORK</span><h1>Your images.<br>A perfectly simple <em>PDF.</em></h1><p>Photos, scans, and screenshots, brought together.<br>Add your images, make it yours, and you're done.</p></section>
-    <div class="workspace">
+    <section class="intro"><span class="eyebrow">A LITTLE LESS PAPERWORK</span><h1 id="intro-title">Your images.<br>A perfectly simple <em>PDF.</em></h1><p id="intro-copy">Photos, scans, and screenshots, brought together.<br>Add your images, make it yours, and you're done.</p></section>
+    <nav class="tool-switcher" role="tablist" aria-label="Choose a PDF tool">
+      <button id="tool-images" role="tab" aria-selected="true" aria-controls="image-panel" tabindex="0" data-tool="images"><span aria-hidden="true">▧</span><span>Images to PDF<small>Photos into pages</small></span></button>
+      <button id="tool-merge" role="tab" aria-selected="false" aria-controls="document-panel" tabindex="-1" data-tool="merge"><span aria-hidden="true">⊞</span><span>Merge PDF<small>Better together</small></span></button>
+      <button id="tool-extract" role="tab" aria-selected="false" aria-controls="document-panel" tabindex="-1" data-tool="extract"><span aria-hidden="true">▱</span><span>Extract pages<small>Just the pages you need</small></span></button>
+      <button id="tool-rotate" role="tab" aria-selected="false" aria-controls="document-panel" tabindex="-1" data-tool="rotate"><span aria-hidden="true">↻</span><span>Rotate PDF<small>The right way up</small></span></button>
+    </nav>
+    <div class="workspace" id="image-panel" role="tabpanel" aria-labelledby="tool-images">
       <section class="editor" aria-label="Image workspace">
         <div class="section-bar"><h2>Your images <span id="count" class="pill">0</span></h2><div class="toolbar"><button id="sort" class="text-button" disabled>Sort A–Z</button><button id="clear" class="text-button" disabled>Clear all</button></div></div>
         <input id="files" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple hidden>
@@ -35,6 +41,41 @@
           <button id="convert" class="primary" disabled><span>Create PDF</span><span aria-hidden="true">↗</span></button>
           <p id="export-note" class="export-note">Add an image to get started</p>
           <a id="download-again" class="download-again" hidden>Download PDF again</a>
+        </div>
+      </aside>
+    </div>
+    <div class="workspace" id="document-panel" role="tabpanel" aria-labelledby="tool-merge" hidden>
+      <section class="editor" aria-label="PDF workspace">
+        <div class="section-bar"><h2>Your PDFs <span id="pdf-count" class="pill">0</span></h2><button id="pdf-clear" class="text-button" disabled>Clear files</button></div>
+        <input id="pdf-files" type="file" accept="application/pdf,.pdf" multiple hidden>
+        <button id="pdf-dropzone" class="dropzone"><span class="upload-icon" aria-hidden="true">↥</span><strong id="pdf-upload-title">Drop your PDFs here</strong><span>or <u>browse files</u></span><small>PDF · up to 30 MB per file</small></button>
+        <p id="pdf-list-hint" class="queue-hint" hidden></p>
+        <div id="pdf-list" class="pdf-list" aria-label="Selected PDF documents"></div>
+        <button id="pdf-add" class="add-more" hidden>＋ Add more PDFs</button>
+        <section id="pdf-page-section" class="pdf-page-section" hidden>
+          <div class="page-selection-heading"><h3>Choose your pages</h3><div class="toolbar"><button id="pdf-select-all" class="text-button">Select all</button><button id="pdf-select-none" class="text-button">Clear selection</button></div></div>
+          <p class="field-note">Click page numbers, or enter a range in the settings. These tiles show page size and orientation.</p>
+          <div id="pdf-page-grid" class="pdf-page-grid" aria-label="PDF page selection"></div>
+        </section>
+        <div id="pdf-status" class="message" role="status" aria-live="polite"></div>
+        <div class="editor-footer"><span>01 &nbsp; Add PDFs</span><span>02 &nbsp; Choose your pages</span><span>03 &nbsp; Download</span></div>
+      </section>
+      <aside class="settings" aria-label="Document settings">
+        <div class="section-bar"><h2 id="pdf-settings-title">Bring them together</h2><span class="small-label">PDF SETTINGS</span></div>
+        <div class="settings-body">
+          <div class="document-summary"><span class="summary-symbol" aria-hidden="true">▤</span><strong id="pdf-summary-title">One tidy document</strong><p id="pdf-summary-description">Combine PDFs in the order shown, with every page included.</p></div>
+          <div id="pdf-selection-settings" hidden>
+            <label for="pdf-range">Pages to include</label><input id="pdf-range" class="range-input" value="all" placeholder="e.g. 1, 3-5, 8" autocomplete="off" aria-describedby="pdf-range-help pdf-selection-summary">
+            <p class="field-note" id="pdf-range-help">Use “all”, page numbers, or ranges, such as 1, 3-5. Your entered order is preserved.</p>
+            <p id="pdf-selection-summary" class="selection-summary" aria-live="polite"></p>
+          </div>
+          <fieldset id="pdf-rotation-settings" hidden><legend>Rotate selected pages</legend><div class="segmented"><label><input type="radio" name="pdf-angle" value="90" checked><span>90° ↻</span></label><label><input type="radio" name="pdf-angle" value="180"><span>180°</span></label><label><input type="radio" name="pdf-angle" value="270"><span>90° ↺</span></label></div><p class="field-note">Applied relative to each page’s current rotation. Other pages stay as they are.</p></fieldset>
+          <div class="pdf-output-summary"><span>Output</span><strong id="pdf-output-count">0 pages</strong></div>
+          <label for="pdf-filename">File name</label><div class="filename-wrap"><input id="pdf-filename" value="merged" maxlength="100" autocomplete="off" aria-label="Document PDF file name"><span>.pdf</span></div>
+          <button id="pdf-export" class="primary" disabled><span id="pdf-export-label">Merge PDFs</span><span aria-hidden="true">↗</span></button>
+          <p id="pdf-export-note" class="export-note">Add at least two PDFs to get started</p>
+          <a id="pdf-download" class="download-again" hidden>Download PDF again</a>
+          <p class="document-limit-note">Standard PDFs only. Interactive forms and password-protected documents are not supported.</p>
         </div>
       </aside>
     </div>

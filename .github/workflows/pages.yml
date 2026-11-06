@@ -3,13 +3,15 @@ name: Publish Paperwork
 on:
   push:
     branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: pages
+  group: pages-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -28,12 +30,18 @@ jobs:
       - name: Build app
         run: npm run build
         working-directory: tools/image-to-pdf
+      - name: Test PDF operations
+        run: npm test
+        working-directory: tools/image-to-pdf
       - uses: actions/configure-pages@v5
+        if: github.event_name != 'pull_request'
       - uses: actions/upload-pages-artifact@v4
+        if: github.event_name != 'pull_request'
         with:
           path: tools/image-to-pdf/dist
 
   deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:

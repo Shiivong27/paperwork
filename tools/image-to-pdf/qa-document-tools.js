@@ -1,0 +1,64 @@
+export async function runDocumentChecks(assert, until, getBlob) {
+  const $ = id => document.getElementById(id);
+  const fixture = async (name, widths) => {
+    const pdf = await PDFLib.PDFDocument.create();
+    widths.forEach((width, index) => {
+      const page = pdf.addPage([width, 600]);
+      page.drawRectangle({ x: 20, y: 20, width: width - 40, height: 560, color: PDFLib.rgb(.9, .94, .86) });
+      page.drawText(`${name} - page ${index + 1}`, { x: 35, y: 535, size: 19 });
+      page.drawText('TOP', { x: 35, y: 500, size: 12 });
+    });
+    return new File([await pdf.save()], `${name}.pdf`, { type: 'application/pdf' });
+  };
+  const upload = files => { const transfer = new DataTransfer(); files.forEach(file => transfer.items.add(file)); $('pdf-files').files = transfer.files; $('pdf-files').dispatchEvent(new Event('change', { bubbles: true })); };
+  const loaded = async count => { await until(() => !$('tool-merge').disabled); assert($('pdf-count').textContent === String(count), 'PDF file count must match'); };
+  const exportPdf = async () => {
+    assert(!$('pdf-export').disabled, 'PDF export should be enabled');
+    $('pdf-export').click();
+    assert($('tool-images').disabled, 'PDF processing must lock tool switching');
+    await until(() => !$('tool-merge').disabled && !$('pdf-download').hidden);
+    return PDFLib.PDFDocument.load(await getBlob().arrayBuffer());
+  };
+  const retain = async id => { const element = document.createElement('textarea'); element.id = id; element.hidden = true; element.textContent = btoa(Array.from(new Uint8Array(await getBlob().arrayBuffer()), byte => String.fromCharCode(byte)).join('')); document.body.append(element); };
+  const first = await fixture('Project notes', [300, 400, 500]);
+  const second = await fixture('Appendix', [350, 450]);
+  $('tool-merge').click(); assert($('image-panel').hidden, 'Tool tabs must change workspace');
+  upload([new File(['invalid'], 'bad.pdf', { type: 'application/pdf' })]); await loaded(0);
+  assert($('pdf-status').classList.contains('error'), 'Malformed PDF must report an error');
+  upload([first]); await loaded(1); assert($('pdf-export').disabled, 'Merge requires two documents');
+  upload([second]); await loaded(2);
+  document.querySelector('[aria-label="Move earlier: Appendix.pdf"]').click();
+  const merged = await exportPdf();
+  assert(merged.getPages().map(page => page.getWidth()).join(',') === '350,450,300,400,500', 'Merge must follow the chosen file order');
+  await retain('qa-merged-pdf');
+  $('tool-extract').click(); upload([first]); await loaded(1);
+  $('pdf-range').value = '3, 1'; $('pdf-range').dispatchEvent(new Event('input'));
+  $('pdf-filename').value = 'chosen-pages'; $('pdf-filename').dispatchEvent(new Event('input'));
+  const extracted = await exportPdf();
+  assert(extracted.getPages().map(page => page.getWidth()).join(',') === '500,300', 'Extract must preserve entered page order');
+  assert($('pdf-download').download === 'chosen-pages.pdf', 'Document filename must be applied');
+  await retain('qa-extracted-pdf');
+  $('pdf-range').value = '4'; $('pdf-range').dispatchEvent(new Event('input'));
+  assert($('pdf-export').disabled && $('pdf-range').getAttribute('aria-invalid') === 'true' && $('pdf-download').hidden, 'Out-of-range input must block export and invalidate downloads');
+  $('pdf-select-all').click(); $('pdf-page-grid').children[1].click();
+  assert($('pdf-range').value === '1, 3', 'Page tiles must toggle the range selection');
+  $('pdf-select-none').click(); assert($('pdf-export').disabled, 'Empty page selection must block export');
+  $('tool-rotate').click(); upload([first]); await loaded(1);
+  $('pdf-range').value = '2'; $('pdf-range').dispatchEvent(new Event('input'));
+  const rotated = await exportPdf();
+  assert(rotated.getPages().map(page => page.getRotation().angle).join(',') === '0,90,0', 'Rotation must affect only the selected page');
+  assert(rotated.getPageCount() === 3, 'Rotation must keep all original pages');
+  await retain('qa-document-rotated-pdf');
+  const again = await exportPdf(); assert(again.getPage(1).getRotation().angle === 90, 'Repeat exports must not accumulate rotation');
+  document.querySelector('[name="pdf-angle"][value="270"]').checked = true;
+  document.querySelector('[name="pdf-angle"][value="270"]').dispatchEvent(new Event('change'));
+  assert($('pdf-download').hidden, 'Changing rotation must clear stale downloads');
+  assert($('pdf-page-grid').children[1].getAttribute('aria-label').includes('270'), 'Rotation tile must show the resulting angle');
+  $('tool-images').click(); assert($('count').textContent === '2', 'Image queue must survive tab changes');
+  $('tool-images').dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+  assert($('tool-merge').getAttribute('aria-selected') === 'true', 'Arrow keys must navigate the tool tabs');
+  assert($('pdf-count').textContent === '2', 'Each PDF tool must preserve its own document queue');
+  $('pdf-clear').click(); assert($('pdf-count').textContent === '0' && $('pdf-export').disabled, 'Clear must reset the active document tool');
+  upload([first, second]); await loaded(2); await exportPdf();
+  assert(document.documentElement.scrollWidth <= innerWidth, 'Document tools must fit the viewport');
+}

@@ -1,4 +1,6 @@
 import { pageLayout, createPdf } from './pdf.js';
+import './document-tools.js';
+import { setProcessing } from './tool-state.js';
 
 const $ = id => document.getElementById(id);
 const state = { images: [], selected: null, busy: false, loading: false, download: null };
@@ -68,7 +70,7 @@ function render() {
 function move(from, to) { if (to < 0 || to >= state.images.length || from === to) return; const [item] = state.images.splice(from, 1); state.images.splice(to, 0, item); invalidateDownload(); render(); }
 async function addFiles(files) {
   if (state.busy || state.loading) return;
-  state.loading = true; invalidateDownload(); message('Reading images…'); render();
+  state.loading = true; setProcessing('images', true); invalidateDownload(); message('Reading images…'); render();
   const errors = [];
   try {
     for (const file of files) {
@@ -89,7 +91,7 @@ async function addFiles(files) {
         state.images.push(item); if (!state.selected) state.selected = item.id;
       } catch (error) { if (url) URL.revokeObjectURL(url); errors.push(`${file.name}: ${error.message}`); }
     }
-  } finally { state.loading = false; $('files').value = ''; render(); }
+  } finally { state.loading = false; setProcessing('images', false); $('files').value = ''; render(); }
   message(errors.length ? errors.join('\n') : `${files.length} image${files.length === 1 ? '' : 's'} added. Ready when you are.`, Boolean(errors.length));
 }
 async function prepareImage(item) {
@@ -106,16 +108,16 @@ async function prepareImage(item) {
 }
 $('files').addEventListener('change', event => addFiles(Array.from(event.target.files)));
 for (const id of ['dropzone', 'add-more']) $(id).addEventListener('click', () => $('files').click());
-document.addEventListener('dragover', event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); $('dropzone').classList.add('dragover'); } });
+document.addEventListener('dragover', event => { if ($('image-panel').hidden) return; if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); $('dropzone').classList.add('dragover'); } });
 document.addEventListener('dragleave', event => { if (!event.relatedTarget) $('dropzone').classList.remove('dragover'); });
-document.addEventListener('drop', event => { if (event.dataTransfer.files.length) { event.preventDefault(); $('dropzone').classList.remove('dragover'); addFiles(Array.from(event.dataTransfer.files)); } });
+document.addEventListener('drop', event => { if ($('image-panel').hidden) return; if (event.dataTransfer.files.length) { event.preventDefault(); $('dropzone').classList.remove('dragover'); addFiles(Array.from(event.dataTransfer.files)); } });
 $('clear').addEventListener('click', () => { for (const item of state.images) URL.revokeObjectURL(item.url); state.images = []; state.selected = null; invalidateDownload(); message(); render(); });
 $('sort').addEventListener('click', () => { state.images.sort((a,b) => a.file.name.localeCompare(b.file.name, undefined, { numeric: true })); invalidateDownload(); render(); });
 for (const control of document.querySelectorAll('select, [name="orientation"], #filename')) control.addEventListener('input', () => { invalidateDownload(); preview(); });
 $('convert').addEventListener('click', async () => {
   if (state.busy || !state.images.length || state.loading) return;
-  state.busy = true; invalidateDownload(); render(); message('Creating your PDF…');
-  const controls = Array.from(document.querySelectorAll('.settings input, .settings select'));
+  state.busy = true; setProcessing('images', true); invalidateDownload(); render(); message('Creating your PDF…');
+  const controls = Array.from(document.querySelectorAll('#image-panel .settings input, #image-panel .settings select'));
   controls.forEach(control => control.disabled = true);
   try {
     if (!window.PDFLib) throw new Error('The PDF library did not load. Restart the app and refresh the page.');
@@ -128,7 +130,7 @@ $('convert').addEventListener('click', async () => {
     const link = $('download-again'); link.href = state.download; link.download = `${filename}.pdf`; link.hidden = false; link.click();
     message(`Your ${state.images.length}-page PDF is ready (${sizeText(bytes.length)}).`);
   } catch (error) { message(`Couldn't create the PDF. ${error.message}`, true); }
-  finally { state.busy = false; controls.forEach(control => control.disabled = false); render(); }
+  finally { state.busy = false; setProcessing('images', false); controls.forEach(control => control.disabled = false); render(); }
 });
 window.addEventListener('beforeunload', () => { for (const item of state.images) URL.revokeObjectURL(item.url); if (state.download) URL.revokeObjectURL(state.download); });
 render();
