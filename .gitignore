@@ -1,5 +1,12 @@
 node_modules/
-dist/
+.codex/
 .DS_Store
+.rea/cache/
+.rea/tmp/
+.rea/publish/
+investigations/**/evidence/*
+!investigations/**/evidence/.gitkeep
+!investigations/**/evidence/README.md
 .env
 .env.*
+!.env.example

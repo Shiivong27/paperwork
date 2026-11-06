@@ -1,0 +1,7 @@
+{
+  "name": "rea-local-runtime",
+  "private": true,
+  "dependencies": {
+    "node": "24.22.2"
+  }
+}

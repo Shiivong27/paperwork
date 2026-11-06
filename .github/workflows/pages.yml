@@ -21,12 +21,17 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-      - run: npm ci --no-audit --no-fund
-      - run: npm run build
+          cache-dependency-path: tools/image-to-pdf/package-lock.json
+      - name: Install app dependencies
+        run: npm ci --no-audit --no-fund
+        working-directory: tools/image-to-pdf
+      - name: Build app
+        run: npm run build
+        working-directory: tools/image-to-pdf
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: dist
+          path: tools/image-to-pdf/dist
 
   deploy:
     needs: build

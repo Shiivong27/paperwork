@@ -1,11 +1,16 @@
 {
-  "name": "paperwork-image-to-pdf",
-  "version": "1.0.0",
+  "name": "rea-workspace",
+  "version": "0.1.0",
   "private": true,
-  "type": "module",
+  "description": "Workspace for evidence-based reverse engineering and tool development",
   "scripts": {
-    "start": "node server.mjs",
-    "build": "node build.mjs"
+    "start": "npm --prefix tools/image-to-pdf start",
+    "build:app": "npm --prefix tools/image-to-pdf run build",
+    "build": "npm run build:app",
+    "rea": "bash scripts/rea.sh",
+    "rea:verify": ".rea/runtime/node_modules/.bin/node scripts/verify-rea.mjs"
   },
-  "dependencies": { "pdf-lib": "1.17.1" }
+  "devDependencies": {
+    "rea-agents": "6.8.0"
+  }
 }
