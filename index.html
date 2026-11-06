@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Turn JPEG and PNG images into a PDF, privately in your browser.">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'">
+  <title>Paperwork — Images to PDF</title>
+  <link rel="stylesheet" href="./style.css">
+  <script defer src="./pdf-lib.js"></script><script type="module" src="./app.js"></script>
+</head>
+<body>
+  <header><a class="brand" href="./" aria-label="Paperwork home"><span class="brand-icon">▤</span> paperwork<span class="brand-dot">.</span></a><span class="privacy"><span class="status-dot"></span> Files stay on your device</span></header>
+  <main>
+    <section class="intro"><span class="eyebrow">A LITTLE LESS PAPERWORK</span><h1>Your images.<br>A perfectly simple <em>PDF.</em></h1><p>Photos, scans, and screenshots, brought together.<br>Add your images, make it yours, and you're done.</p></section>
+    <div class="workspace">
+      <section class="editor" aria-label="Image workspace">
+        <div class="section-bar"><h2>Your images <span id="count" class="pill">0</span></h2><div class="toolbar"><button id="sort" class="text-button" disabled>Sort A–Z</button><button id="clear" class="text-button" disabled>Clear all</button></div></div>
+        <input id="files" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple hidden>
+        <button id="dropzone" class="dropzone"><span class="upload-icon" aria-hidden="true">↥</span><strong>Drop your images here</strong><span>or <u>browse files</u></span><small>JPEG & PNG · up to 30 MB per image</small></button>
+        <p id="queue-hint" class="queue-hint" hidden>Drag to reorder, or use the arrow buttons. One image per page.</p>
+        <div id="images" class="images" aria-label="PDF page order"></div>
+        <button id="add-more" class="add-more" hidden>＋ Add more images</button>
+        <div id="message" class="message" role="status" aria-live="polite"></div>
+        <div class="editor-footer"><span>01 &nbsp; Add images</span><span>02 &nbsp; Make it yours</span><span>03 &nbsp; Download</span></div>
+      </section>
+      <aside class="settings" aria-label="PDF settings">
+        <div class="section-bar"><h2>Make it yours</h2><span class="small-label">PDF SETTINGS</span></div>
+        <div class="settings-body">
+          <label for="size">Page size</label><select id="size"><option value="a4">A4 · 210 × 297 mm</option><option value="letter">US Letter · 8.5 × 11 in</option><option value="image">Fit to image</option></select>
+          <fieldset id="orientation-field"><legend>Orientation</legend><div class="segmented"><label><input type="radio" name="orientation" value="auto" checked><span>Auto</span></label><label><input type="radio" name="orientation" value="portrait"><span>Portrait</span></label><label><input type="radio" name="orientation" value="landscape"><span>Landscape</span></label></div></fieldset>
+          <label for="margin">White space</label><select id="margin"><option value="0">None · edge to edge</option><option value="18" selected>Small · ¼ inch</option><option value="36">Generous · ½ inch</option></select>
+          <p class="field-note">Images keep their proportions and are never cropped.</p>
+          <div class="preview-wrap"><div id="preview" class="preview-page"><span id="preview-placeholder">Your page preview</span><img id="preview-image" alt="Preview of the selected PDF page" hidden></div><div class="preview-caption"><span id="preview-caption">LIVE PREVIEW</span><span id="page-dimensions">A4</span></div></div>
+          <label for="filename">File name</label><div class="filename-wrap"><input id="filename" value="my-images" maxlength="100" autocomplete="off" aria-label="PDF file name"><span>.pdf</span></div>
+          <button id="convert" class="primary" disabled><span>Create PDF</span><span aria-hidden="true">↗</span></button>
+          <p id="export-note" class="export-note">Add an image to get started</p>
+          <a id="download-again" class="download-again" hidden>Download PDF again</a>
+        </div>
+      </aside>
+    </div>
+    <footer><span>Made for the everyday stuff.</span><span>No uploads. No accounts. Just your PDF.</span></footer>
+  </main>
+</body>
+</html>
