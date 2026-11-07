@@ -2,7 +2,7 @@
 import './app.js';
 import { pageLayout } from './pdf.js';
 import { runDocumentChecks } from './qa-document-tools.js';
-import { runEditorChecks } from './qa-editor.js';
+import { runEditorChecks, runFormChecks } from './qa-editor.js';
 const $ = id => document.getElementById(id);
 const report = document.createElement('output'); report.id = 'qa-result'; report.hidden = true; document.body.append(report);
 const assert = (value, text) => { if (!value) throw new Error(text); };
@@ -71,6 +71,7 @@ try {
   assert(document.documentElement.scrollWidth <= innerWidth, 'App must not overflow the viewport');
   await runDocumentChecks(assert, until, () => pdfBlob);
   await runEditorChecks(assert, until, () => pdfBlob);
-  report.textContent = 'PASS: existing tools; PDF rendering; text/image/highlight/shapes; pointer move/resize; keyboard movement; undo/redo/delete; multi-page export; cropped/rotated pixel alignment; drawn/typed/uploaded signatures; name/date; separate drafts; repeat exports; mobile overflow.';
+  await runFormChecks(assert, until, () => pdfBlob);
+  report.textContent = 'PASS: existing tools; editor/signature regression; form working-copy choice; cancel preserves draft; current form values; original file preservation; widget removal; signing an empty signature box.';
   report.dataset.status = 'passed';
 } catch (error) { report.textContent = 'FAIL: ' + error.message; report.dataset.status = 'failed'; console.error(error); }

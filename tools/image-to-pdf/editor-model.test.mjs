@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { deflateSync } from 'node:zlib';
 import library from 'pdf-lib';
-import { EditHistory, boundMark, inverseTransform, overlayTransform, exportEdits } from './editor-model.js';
+import { EditHistory, boundMark, inverseTransform, overlayTransform, exportEdits, inspectEditorPdf, flattenEditorForm } from './editor-model.js';
 
 const point = (m, x, y) => [m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]];
 test('overlay mapping matches display coordinates at all rotations, crop offsets, and UserUnit scale', () => {
@@ -63,4 +63,42 @@ test('export keeps original pages, crop box and rotation; repeat exports do not 
   assert.deepEqual(Buffer.from(bytes), original);
   await assert.rejects(exportEdits(bytes, [], library), /Add something/);
   await assert.rejects(exportEdits(bytes, [{ ...overlays[0], pageIndex: 9 }], library), /Invalid edited page/);
+});
+
+async function formFixture(signed = false) {
+  const pdf = await library.PDFDocument.create(), page = pdf.addPage([400, 600]), form = pdf.getForm();
+  page.drawText('Original page text');
+  const field = form.createTextField('Customer'); field.setText('Alex Morgan'); field.addToPage(page, { x: 40, y: 400, width: 250, height: 30 });
+  const signature = pdf.context.obj({ Type: 'Annot', Subtype: 'Widget', FT: 'Sig', T: library.PDFHexString.fromText('Signature'), Rect: [40, 100, 280, 150], P: page.ref });
+  if (signed) signature.set(library.PDFName.of('V'), pdf.context.obj({ Type: 'Sig', Contents: library.PDFHexString.of('30010203'), ByteRange: [0, 30, 40, 100] }));
+  const signatureRef = pdf.context.register(signature); page.node.addAnnot(signatureRef); form.acroForm.addField(signatureRef);
+  const link = pdf.context.register(pdf.context.obj({ Type: 'Annot', Subtype: 'Link', Rect: [10, 10, 40, 20] })); page.node.addAnnot(link);
+  return pdf.save();
+}
+test('editor accepts ordinary forms and empty signature widgets without changing the source', async () => {
+  const bytes = await formFixture(), before = Buffer.from(bytes), inspected = await inspectEditorPdf(bytes, library);
+  assert.equal(inspected.fieldCount, 2); assert.equal(inspected.widgetPages.length, 1);
+  assert.equal(inspected.widgetPages[0].rectangles.length, 2);
+  assert.equal(inspected.fieldHasValue.get('Customer'), true);
+  assert.equal(inspected.fieldHasValue.get('Signature'), false);
+  assert.deepEqual(Buffer.from(bytes), before);
+  assert.equal((await library.PDFDocument.load(bytes)).getForm().getTextField('Customer').getText(), 'Alex Morgan');
+});
+test('flat working copies remove all widgets and form fields while retaining other annotations and page content', async () => {
+  const bytes = await formFixture(), before = Buffer.from(bytes);
+  const output = await library.PDFDocument.load(await flattenEditorForm(bytes, [{ pageIndex: 0, width: 400, height: 600, transform: [1, 0, 0, -1, 0, 600], pngBytes: png() }], library));
+  assert.equal(output.catalog.has(library.PDFName.of('AcroForm')), false);
+  const annotations = output.getPage(0).node.Annots(); assert.equal(annotations.size(), 1);
+  assert.equal(output.context.lookup(annotations.get(0)).get(library.PDFName.of('Subtype')).toString(), '/Link');
+  assert.ok(output.getPage(0).node.Contents().size() > 1);
+  assert.deepEqual(Buffer.from(bytes), before);
+  await assert.rejects(flattenEditorForm(bytes, [], library), /incomplete/);
+});
+test('certificate signature values, XFA forms and orphan form widgets have separate actionable errors', async () => {
+  await assert.rejects(inspectEditorPdf(await formFixture(true), library), /certificate signature/);
+  const xfa = await library.PDFDocument.create(); xfa.addPage(); xfa.getForm().acroForm.dict.set(library.PDFName.of('XFA'), xfa.context.obj([]));
+  await assert.rejects(inspectEditorPdf(await xfa.save({ updateFieldAppearances: false }), library), /XFA forms/);
+  const orphan = await library.PDFDocument.create(), page = orphan.addPage();
+  page.node.addAnnot(orphan.context.register(orphan.context.obj({ Type: 'Annot', Subtype: 'Widget', FT: 'Tx', Rect: [10, 10, 50, 30] })));
+  await assert.rejects(inspectEditorPdf(await orphan.save(), library), /inconsistent form structure/);
 });

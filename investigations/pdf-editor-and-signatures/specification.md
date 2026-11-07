@@ -17,7 +17,9 @@ Branch: feature/pdf-editor-and-signatures. Local review before PR or deployment.
 - Render source pages locally using bundled PDF.js assets and worker.
 - The exported additions match the preview on normal, cropped, and rotated pages.
 - Preserve original page content and page count. Only pages with additions change.
-- Empty, unsupported, protected, interactive-form, or oversized inputs have clear errors.
+- Empty, unsupported, protected, or oversized inputs have clear errors.
+- Ordinary AcroForms offer an explicit working-copy choice before flattening their
+  visible fields; cancelling preserves the current draft and original bytes.
 - Undo/redo restores complete object states; repeated exports do not accumulate additions.
 - Mouse, touch, keyboard movement, and numeric position/size controls are supported.
 - Signatures and documents stay in browser memory; no upload or third-party asset requests.
@@ -39,7 +41,7 @@ not semantic PDF highlight annotations. This is not a redaction tool.
 - PDF.js 6.5.438 is pinned with a local worker, fonts, CMaps, ICC files, decoders,
   and licenses. Browser input is passed directly as bytes, with no document URL
   or upload endpoint. The server accepts only GET/HEAD for static assets.
-- Eleven Node tests pass, including affine mapping at 0/90/180/270 degrees,
+- Fourteen Node tests pass, including affine mapping at 0/90/180/270 degrees,
   CropBox offsets and UserUnit scale, immutable undo history, bounds, and
   non-accumulating exports that preserve original crop/rotation/page content.
 - Desktop and 390px mobile browser checks pass with generated documents. Mobile
@@ -53,8 +55,12 @@ not semantic PDF highlight annotations. This is not a redaction tool.
 - Replacing drafts destroys the PDF.js loading task and releases image bitmaps.
   A shared processing guard covers sample preparation, parsing, rendering,
   assets, and export so users cannot switch tools mid-operation.
-- Protected and interactive-form PDFs remain unsupported. Drafts and signature
-  assets are memory-only and are lost when the page is refreshed.
+- Ordinary AcroForms support an explicit flat working copy. PDF.js renders current
+  values into widget-region overlays; original page content and non-widget
+  annotations are retained. The reachable form tree and all page widgets are
+  removed, including empty signature widgets. Original bytes stay untouched.
+- Protected, XFA, certificate-signed, and inconsistent/conflicting-form PDFs remain
+  unsupported. Drafts and signature assets are memory-only and lost on refresh.
 
 Local QA artifacts are retained in ignored `.rea/tmp/editor-*` and
 `.rea/tmp/qa-editor-*` / `.rea/tmp/qa-signed-*` paths. No user documents are included.

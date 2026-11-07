@@ -1,10 +1,9 @@
 import { isProcessing, setProcessing } from './tool-state.js';
-import { readPdf } from './pdf-tools.js';
-import { EditHistory, boundMark, exportEdits } from './editor-model.js';
+import { EditHistory, boundMark, exportEdits, inspectEditorPdf, flattenEditorForm } from './editor-model.js';
 import { paintMarks, textHeight, fonts } from './editor-canvas.js';
 
 const $ = id => document.getElementById(id);
-const draft = () => ({ bytes: null, renderer: null, fileName: '', filename: '', page: 0, views: new Map(), history: new EditHistory(), assets: new Map(), selected: null, zoom: 1, download: null });
+const draft = () => ({ bytes: null, renderer: null, fileName: '', filename: '', page: 0, views: new Map(), history: new EditHistory(), assets: new Map(), selected: null, zoom: 1, download: null, pending: null, flattenedForm: false });
 const drafts = { edit: draft(), sign: draft() };
 let mode = null, renderTask = null, rendererModule = null, pointer = null, imageKind = 'image', signatureMode = 'draw', hasInk = false;
 const measure = document.createElement('canvas').getContext('2d');
@@ -34,26 +33,29 @@ async function pdfjs() {
 }
 function updateControls() {
   const state = current(); if (!state) return;
-  const locked = isProcessing(), hasFile = Boolean(state.bytes), mark = selected(state);
-  const pageReady = hasFile && Boolean(view(state)) && $('edit-page').dataset.ready === 'ready';
+  const locked = isProcessing(), hasFile = Boolean(state.bytes), pending = Boolean(state.pending), mark = selected(state);
+  const pageReady = !pending && hasFile && Boolean(view(state)) && $('edit-page').dataset.ready === 'ready';
   for (const element of document.querySelectorAll('#edit-panel button, #edit-panel input, #edit-panel select, #edit-panel textarea')) element.disabled = locked;
-  $('edit-workbench').hidden = !hasFile; $('edit-dropzone').hidden = hasFile; $('edit-replace').hidden = !hasFile;
+  $('edit-workbench').hidden = !hasFile || pending; $('edit-dropzone').hidden = hasFile || pending; $('edit-replace').hidden = !hasFile && !pending;
+  $('edit-form-choice').hidden = !pending;
+  if (pending) $('edit-form-description').textContent = `${state.pending.file.name} has ${state.pending.inspection.fieldCount} form field(s). Prepare a working copy to preserve the visible values and add your edits or signature.`;
   $('edit-add-tools').hidden = mode !== 'edit'; $('sign-add-tools').hidden = mode !== 'sign'; $('sign-details').hidden = mode !== 'sign';
   $('edit-workspace-title').textContent = mode === 'sign' ? 'Your signing desk' : 'Your canvas';
   $('edit-panel').setAttribute('aria-labelledby', `tool-${mode}`);
-  $('edit-file-name').textContent = hasFile ? `${state.fileName} · ${state.renderer.numPages} pages` : 'Your PDF stays on your device.';
+  $('edit-file-name').textContent = pending ? `${state.pending.file.name} · awaiting working copy` : hasFile ? `${state.fileName} · ${state.renderer.numPages} pages${state.flattenedForm ? ' · flat form copy' : ''}` : 'Your PDF stays on your device.';
   $('edit-mark-count').textContent = `${state.history.marks.length} addition${state.history.marks.length === 1 ? '' : 's'}`;
   $('edit-prev').disabled = locked || !hasFile || state.page === 0;
   $('edit-next').disabled = locked || !hasFile || state.page >= state.renderer.numPages - 1;
   $('edit-undo').disabled = locked || !state.history.past.length;
   $('edit-redo').disabled = locked || !state.history.future.length;
   $('edit-reset').disabled = locked || !state.history.marks.length;
-  $('edit-export').disabled = locked || !hasFile || !state.history.marks.length;
+  $('edit-export').disabled = locked || pending || !hasFile || !state.history.marks.length;
   $('edit-export').firstElementChild.textContent = locked ? 'Working…' : mode === 'sign' ? 'Download signed PDF' : 'Download edited PDF';
   for (const button of document.querySelectorAll('.edit-add-toolbar button')) button.disabled = locked || !pageReady;
   $('sign-add-name').disabled = locked || !pageReady || !$('sign-name').value.trim();
   $('sign-add-date').disabled = locked || !pageReady || !$('sign-date').value;
-  $('edit-download').hidden = !state.download;
+  $('edit-download').hidden = pending || !state.download;
+  if (pending) for (const element of document.querySelectorAll('#edit-properties input, #edit-properties select, #edit-properties textarea, #edit-properties button, #edit-filename')) element.disabled = true;
   if (state.download) { $('edit-download').href = state.download.url; $('edit-download').download = state.download.filename; }
   syncValue('edit-filename', state.filename || (mode === 'sign' ? 'signed' : 'edited'));
   syncValue('edit-zoom', state.zoom);
@@ -62,6 +64,7 @@ function updateControls() {
   $('edit-scope-note').textContent = mode === 'sign'
     ? 'Signatures are visual additions, not certificate-based digital signatures. Added content is flattened into the downloaded copy.'
     : 'Additions, including text, export as graphics. Existing PDF text stays intact. This tool does not remove underlying content.';
+  if (state.flattenedForm) $('edit-scope-note').textContent += ' Original form fields are now static in this working copy.';
   if (!mark) return;
   $('edit-text-properties').hidden = mark.type !== 'text';
   $('edit-color-properties').hidden = ['image', 'signature'].includes(mark.type);
@@ -205,29 +208,78 @@ function addMark(properties) {
     mark = fitText(mark, viewport); state.selected = mark.id; commit([...state.history.marks, mark], true);
   } catch (error) { status(error.message, true); }
 }
-async function loadPdf(file) {
+function rendererOptions(bytes) {
+  return { data: bytes.slice(), isEvalSupported: false, enableXfa: false, useSystemFonts: true,
+    cMapUrl: new URL('./pdfjs/cmaps/', import.meta.url).href, cMapPacked: true,
+    standardFontDataUrl: new URL('./pdfjs/standard_fonts/', import.meta.url).href,
+    wasmUrl: new URL('./pdfjs/wasm/', import.meta.url).href, iccUrl: new URL('./pdfjs/iccs/', import.meta.url).href };
+}
+async function loadPdf(file, preparedBytes = null) {
   if (!current() || isProcessing()) return;
   const targetMode = mode;
   setProcessing('editor-load', true); status('Opening your PDF…'); updateControls();
   let renderer, loadingTask;
   try {
     if (!file.size || file.size > 30 * 1024 * 1024) throw new Error('Use a PDF between 1 byte and 30 MB.');
-    const bytes = new Uint8Array(await file.arrayBuffer()), document = await readPdf(bytes, window.PDFLib);
-    if (document.getPageCount() > 200) throw new Error('Use a PDF with up to 200 pages in the visual editor.');
+    const bytes = preparedBytes || new Uint8Array(await file.arrayBuffer()), inspection = await inspectEditorPdf(bytes, window.PDFLib);
+    if (inspection.document.getPageCount() > 200) throw new Error('Use a PDF with up to 200 pages in the visual editor.');
+    if (inspection.fieldCount || inspection.widgetPages.length) {
+      drafts[targetMode].pending = { file, bytes, inspection }; status('This PDF has fillable fields. Prepare a working copy below.'); return;
+    }
     const library = await pdfjs();
-    loadingTask = library.getDocument({ data: bytes.slice(), isEvalSupported: false, enableXfa: false, useSystemFonts: true,
-      cMapUrl: new URL('./pdfjs/cmaps/', import.meta.url).href, cMapPacked: true,
-      standardFontDataUrl: new URL('./pdfjs/standard_fonts/', import.meta.url).href,
-      wasmUrl: new URL('./pdfjs/wasm/', import.meta.url).href, iccUrl: new URL('./pdfjs/iccs/', import.meta.url).href });
+    loadingTask = library.getDocument(rendererOptions(bytes));
     renderer = await loadingTask.promise;
     const first = (await renderer.getPage(1)).getViewport({ scale: 1 });
     if (first.width * first.height > 16_000_000) throw new Error('This page is too large for the visual editor. Use a smaller page size.');
-    release(drafts[targetMode]); drafts[targetMode] = { ...draft(), bytes, renderer, fileName: file.name, filename: file.name.replace(/\.pdf$/i, '').slice(0, 90) + (targetMode === 'sign' ? '-signed' : '-edited') };
-    renderer = null; loadingTask = null; status('Ready. Add an item, then drag it into place.');
+    release(drafts[targetMode]); drafts[targetMode] = { ...draft(), bytes, renderer, fileName: file.name, flattenedForm: Boolean(preparedBytes), filename: file.name.replace(/\.pdf$/i, '').slice(0, 90) + (targetMode === 'sign' ? '-signed' : '-edited') };
+    renderer = null; loadingTask = null; status(preparedBytes ? 'Form values preserved in a flat working copy. Ready for your additions.' : 'Ready. Add an item, then drag it into place.');
   } catch (error) { await loadingTask?.destroy().catch(() => {}); status(`Couldn't open the PDF. ${error.message}`, true); }
   finally { setProcessing('editor-load', false); $('edit-file').value = ''; updateControls(); }
   if (drafts[targetMode].bytes && mode === targetMode) await showPage();
 }
+async function prepareForm() {
+  const state = current(), pending = state?.pending; if (!pending || isProcessing()) return;
+  let loadingTask, prepared;
+  setProcessing('editor-form', true); updateControls(); status('Preparing your form values…');
+  try {
+    const library = await pdfjs(); loadingTask = library.getDocument(rendererOptions(pending.bytes));
+    const source = await loadingTask.promise, overlays = [];
+    for (const entry of pending.inspection.widgetPages) {
+      status(`Preparing form page ${entry.pageIndex + 1}…`);
+      const page = await source.getPage(entry.pageIndex + 1), viewport = page.getViewport({ scale: 1 });
+      if (viewport.width * viewport.height > 16_000_000) throw new Error('A form page is too large. Export a smaller PDF copy first.');
+      const annotations = await page.getAnnotations({ intent: 'display' });
+      for (const annotation of annotations) {
+        if (!pending.inspection.fieldHasValue.get(annotation.fieldName)) continue;
+        let value = annotation.fieldValue;
+        if (annotation.checkBox) value = value !== 'Off' && value === annotation.exportValue;
+        else if (annotation.radioButton) value = value === annotation.buttonValue;
+        if (value !== undefined && value !== null && ['Tx', 'Btn', 'Ch'].includes(annotation.fieldType)) source.annotationStorage.setValue(annotation.id, { value });
+      }
+      const scale = Math.min(2, Math.sqrt(8_000_000 / (viewport.width * viewport.height))), rendered = page.getViewport({ scale });
+      const full = document.createElement('canvas'); full.width = Math.ceil(rendered.width); full.height = Math.ceil(rendered.height);
+      await page.render({ canvas: full, canvasContext: full.getContext('2d'), viewport: rendered, annotationMode: library.AnnotationMode.ENABLE_STORAGE, background: '#ffffff' }).promise;
+      const layer = document.createElement('canvas'); layer.width = full.width; layer.height = full.height;
+      const context = layer.getContext('2d'), sx = full.width / viewport.width, sy = full.height / viewport.height;
+      for (const rectangle of entry.rectangles) {
+        const [ax, ay] = viewport.convertToViewportPoint(rectangle[0], rectangle[1]);
+        const [bx, by] = viewport.convertToViewportPoint(rectangle[2], rectangle[3]);
+        const x = Math.max(0, Math.floor((Math.min(ax, bx) - 2) * sx)), y = Math.max(0, Math.floor((Math.min(ay, by) - 2) * sy));
+        const right = Math.min(full.width, Math.ceil((Math.max(ax, bx) + 2) * sx)), bottom = Math.min(full.height, Math.ceil((Math.max(ay, by) + 2) * sy));
+        if (right > x && bottom > y) context.drawImage(full, x, y, right - x, bottom - y, x, y, right - x, bottom - y);
+      }
+      const blob = await new Promise(resolve => layer.toBlob(resolve, 'image/png')); full.width = 1; layer.width = 1;
+      if (!blob) throw new Error('Could not capture the form appearance.');
+      overlays.push({ pageIndex: entry.pageIndex, width: viewport.width, height: viewport.height, transform: [...viewport.transform], pngBytes: new Uint8Array(await blob.arrayBuffer()) });
+    }
+    prepared = await flattenEditorForm(pending.bytes, overlays, window.PDFLib);
+    if (prepared.length > 75 * 1024 * 1024) throw new Error('The working copy is too large. Use a shorter or smaller PDF.');
+  } catch (error) { prepared = null; status(`Couldn't prepare this form. ${error.message}`, true); }
+  finally { await loadingTask?.destroy().catch(() => {}); setProcessing('editor-form', false); updateControls(); }
+  if (prepared) await loadPdf(pending.file, prepared);
+}
+$('edit-form-prepare').addEventListener('click', prepareForm);
+$('edit-form-cancel').addEventListener('click', () => { current().pending = null; status(); updateControls(); if (current().renderer) showPage(); });
 async function addBitmap(blob, type = 'image') {
   const state = current(); if (!state?.bytes || isProcessing()) return;
   setProcessing('editor-asset', true); updateControls();

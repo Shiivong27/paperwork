@@ -92,3 +92,48 @@ export async function runEditorChecks(assert, until, getBlob) {
   $('edit-add-highlight').click(); property('edit-x', 45); property('edit-y', 205); property('edit-width', 320);
   assert(document.documentElement.scrollWidth <= innerWidth, 'Visual editor must fit the viewport');
 }
+
+export async function runFormChecks(assert, until, getBlob) {
+  const $ = id => document.getElementById(id);
+  const ready = () => until(() => !$('tool-edit').disabled && !$('edit-workbench').hidden && $('edit-page').dataset.ready === 'ready');
+  const upload = file => { const transfer = new DataTransfer(); transfer.items.add(file); $('edit-file').files = transfer.files; $('edit-file').dispatchEvent(new Event('change', { bubbles: true })); };
+  const source = await PDFLib.PDFDocument.create(), page = source.addPage([595, 842]), form = source.getForm();
+  page.drawText('Form compatibility sample', { x: 50, y: 765, size: 20 });
+  page.drawText('Name', { x: 50, y: 655, size: 12 });
+  const name = form.createTextField('Customer'); name.setText('OLD'); name.addToPage(page, { x: 50, y: 600, width: 300, height: 32, borderWidth: 0 }); name.setFontSize(18);
+  const check = form.createCheckBox('Approved'); check.addToPage(page, { x: 50, y: 530, width: 20, height: 20 }); check.check();
+  const choice = form.createDropdown('Status'); choice.addOptions(['Draft', 'Approved']); choice.select('Approved'); choice.addToPage(page, { x: 100, y: 525, width: 180, height: 30 });
+  page.drawText('Signature', { x: 50, y: 310, size: 12 });
+  const signature = source.context.obj({ Type: 'Annot', Subtype: 'Widget', FT: 'Sig', T: PDFLib.PDFHexString.fromText('Signature'), Rect: [50, 210, 350, 280], P: page.ref });
+  const ref = source.context.register(signature); page.node.addAnnot(ref); form.acroForm.addField(ref);
+  form.updateFieldAppearances(); name.setText('CURRENT VALUE');
+  const original = await source.save({ updateFieldAppearances: false }), file = new File([original], 'fillable-form.pdf', { type: 'application/pdf' });
+  $('tool-edit').click(); await ready();
+  const oldCount = $('edit-mark-count').textContent;
+  upload(file); await until(() => !$('tool-edit').disabled && !$('edit-form-choice').hidden);
+  assert($('edit-workbench').hidden && $('edit-export').disabled, 'Forms must offer an explicit working-copy choice');
+  $('edit-form-cancel').click(); await ready(); assert($('edit-mark-count').textContent === oldCount, 'Cancelling must preserve the existing draft');
+  upload(file); await until(() => !$('tool-edit').disabled && !$('edit-form-choice').hidden);
+  $('edit-form-prepare').click(); await ready();
+  assert($('edit-file-name').textContent.includes('flat form copy'), 'Prepared forms must be labelled');
+  const canvas = $('edit-base'), sx = canvas.width / 595, sy = canvas.height / 842;
+  const pixels = canvas.getContext('2d').getImageData(Math.round(52 * sx), Math.round(212 * sy), Math.round(295 * sx), Math.round(27 * sy));
+  let left = pixels.width, right = 0;
+  for (let y = 0; y < pixels.height; y++) for (let x = 0; x < pixels.width; x++) { const offset = (y * pixels.width + x) * 4; if (pixels.data[offset] < 100 && pixels.data[offset + 1] < 100 && pixels.data[offset + 2] < 100) { left = Math.min(left, x); right = Math.max(right, x); } }
+  assert((right - left) / sx > 80, 'Current canonical text must be rendered, not the stale OLD appearance');
+  $('edit-add-text').click(); $('edit-text').value = 'Added on the form'; $('edit-text').dispatchEvent(new Event('input'));
+  $('edit-export').click(); await until(() => !$('tool-edit').disabled && !$('edit-download').hidden);
+  const flattened = await PDFLib.PDFDocument.load(await getBlob().arrayBuffer());
+  assert(!flattened.catalog.has(PDFLib.PDFName.of('AcroForm')), 'Prepared output must have no reachable form tree');
+  assert(!flattened.getPage(0).node.Annots()?.size(), 'Prepared output must have no leftover widgets covering additions');
+  const untouched = await PDFLib.PDFDocument.load(await file.arrayBuffer());
+  assert(untouched.getForm().getTextField('Customer').getText() === 'CURRENT VALUE' && untouched.getForm().getCheckBox('Approved').isChecked(), 'The original file and its interactive values must stay unchanged');
+  $('tool-sign').click(); await ready(); upload(file);
+  await until(() => !$('tool-sign').disabled && !$('edit-form-choice').hidden); $('edit-form-prepare').click(); await ready();
+  $('sign-name').value = 'Alex Morgan'; $('sign-name').dispatchEvent(new Event('input')); $('sign-type').click(); $('signature-use').click();
+  await until(() => !$('tool-sign').disabled && $('edit-mark-count').textContent.startsWith('1 '));
+  $('edit-y').value = '575'; $('edit-y').dispatchEvent(new Event('change')); $('sign-add-name').click();
+  $('edit-export').click(); await until(() => !$('tool-sign').disabled && !$('edit-download').hidden);
+  const result = document.createElement('textarea'); result.id = 'qa-form-signed-output'; result.hidden = true;
+  result.textContent = btoa(Array.from(new Uint8Array(await getBlob().arrayBuffer()), byte => String.fromCharCode(byte)).join('')); document.body.append(result);
+}

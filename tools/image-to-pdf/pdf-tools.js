@@ -10,10 +10,10 @@ function pageCount(document) {
   return count;
 }
 
-function checkDocument(document, library) {
+function checkDocument(document, library, { allowForms = false } = {}) {
   const count = pageCount(document);
   if (document.isEncrypted) throw new Error('Password-protected PDFs are not supported. Use an unprotected copy.');
-  if (document.catalog.has(library.PDFName.of('AcroForm')) && document.getForm().getFields().length) {
+  if (!allowForms && document.catalog.has(library.PDFName.of('AcroForm')) && document.getForm().getFields().length) {
     throw new Error('Interactive PDF forms are not supported. Export a flattened copy first.');
   }
   return count;
@@ -48,7 +48,7 @@ export function parsePageSelection(text, count) {
   return [...selected];
 }
 
-export async function readPdf(bytes, library) {
+export async function readPdf(bytes, library, options = {}) {
   let document;
   try {
     document = await library.PDFDocument.load(bytes, { updateMetadata: false });
@@ -58,7 +58,7 @@ export async function readPdf(bytes, library) {
     }
     throw new Error('This file could not be read as a PDF. Choose a valid, undamaged PDF.');
   }
-  checkDocument(document, library);
+  checkDocument(document, library, options);
   return document;
 }
 

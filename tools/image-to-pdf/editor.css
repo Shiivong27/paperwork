@@ -4,6 +4,11 @@
 .visual-main { background: white; border: 1px solid var(--line); border-radius: 16px; overflow: hidden; min-width: 0; }
 .visual-main > .section-bar { gap: 12px; }
 .visual-main > .section-bar .toolbar { flex-wrap: wrap; justify-content: flex-end; }
+.edit-form-choice { margin: 24px; padding: 24px; background: #f5f8ee; border: 1px solid #dce6ce; border-radius: 10px; }
+.edit-form-choice h3 { font-size: 16px; margin: 0 0 12px; }
+.edit-form-choice p { font-size: 12px; line-height: 1.8; color: #5f7352; overflow-wrap: anywhere; }
+.edit-form-choice > div { display: flex; flex-wrap: wrap; align-items: center; gap: 18px; margin-top: 18px; }
+.edit-form-choice .primary { width: auto; margin: 0; padding: 0 18px; font-size: 12px; }
 .edit-add-toolbar { padding: 15px 20px; border-bottom: 1px solid var(--line); }
 .edit-add-toolbar > div { display: flex; flex-wrap: wrap; gap: 7px; }
 .edit-add-toolbar button, .edit-view-toolbar button, .inline-field button {

@@ -82,7 +82,11 @@ Signatures are placed as visual graphics; this feature does not create
 certificate-based digital signatures or an identity-verification/audit service.
 
 The visual tools accept standard, unprotected PDFs up to 30 MB / 200 pages.
-Interactive forms remain unsupported. A draft supports up to 100 additions and
+Ordinary fillable forms offer **Prepare working copy**: current field values become
+static graphics so you can add edits or sign an empty signature box. The original
+file stays unchanged. Review the working copy before exporting. XFA forms,
+certificate-signed documents, and inconsistent form structures are unsupported.
+A draft supports up to 100 additions and
 20 image/signature assets (10 MB / 16 megapixels each, 30 MB / 32 megapixels
 combined). Existing document content remains intact. Additions are flattened as
 transparent graphics at up to 2x displayed-page resolution, capped at 16 megapixels
